@@ -1,0 +1,144 @@
+#### Código final depois de muitos testes
+
+## para isso, além do .csv do arquivo de mortalidade, que baixei do site, também
+## preciso de três arquivos para fazer o join:
+     ## CNV do FTP para as IDADES - baixei direto do FTP do DataSUS
+     ## CNV do site para a NATURALIDADE-baixei direto do FTP do DataSUS
+     ## Tabela DTB do IBGE para código dos municípios-baixei direto do FTP do DataSUS
+
+
+setwd("D:/Users/sophi/Documents/PosDoc/Mortalidade")
+
+# ABRINDO O ARQUIVO
+
+library(readxl)
+library (tidyverse)
+library(clipr)
+library(dplyr)
+library (tibble)
+library (sf) ### necessário para o GEOBR
+library (geobr)
+library(readr)
+
+MortalidadeGeral_2010 <- read.csv ("D:/Users/sophi/Documents/PosDoc/Mortalidade/Mortalidade_Geral_2010.csv",
+                                   sep = ";")
+
+MortalidadeGeral_2010 <- as.data.frame(MortalidadeGeral_2010)
+
+
+#Filtrando as colunas de interesse
+
+Mortalidade10 <- MortalidadeGeral_2010
+
+Mortalidade10 <- Mortalidade10 %>% select(NATURAL,CODMUNRES,CAUSABAS,IDADE,SEXO)
+
+Mortalidade10$SEXO <- factor(x = Mortalidade10$SEXO,
+                                     levels = c(1, 2),
+                                     labels = c("Masculino", "Feminino"))
+
+
+
+### fazendo o join com o CNV IDADE
+
+library(readxl)
+
+cod_idade <- read_xls("D:/Users/sophi/Documents/PosDoc/Mortalidade/Conversor_IDADE_CNV_FTP.xls")
+
+
+### deixando no mesmo formato para dar o join
+
+Mortalidade10 <- Mortalidade10 %>%
+  mutate(IDADE = as.character(IDADE))
+
+### FAzendo o Join dessa tabela com a tabela IDADE
+
+Mortalidade10<- Mortalidade10 %>%
+  left_join(cod_idade %>% select(IDADE_REAL,IDADE), 
+            by = c("IDADE" = "IDADE"))
+
+## fazendo o join com o CNV da Naturalidade
+
+cod_pais <- read_xlsx("D:/Users/sophi/Documents/PosDoc/Mortalidade/Cod_Natur_SIM.xlsx")
+
+####colocando os zeros pra ter correspondência com o coluna do ministério da saúde- preciso q os dados
+### d natural tenham sempre 3 dígitos, com zeros a esquerda, se necessário
+
+# install.packages("stringr")
+library(stringr)
+
+cod_pais$NATURAL<- str_pad(cod_pais$NATURAL, width= 3, pad= "0") #### width: define o comprimento total 
+# desejado, pad: especifica que o preenchimento deve ser feito com zeros
+
+
+## Como há erro de preenchimento na coluna NATURAL, onde informações
+## que deveriam estar com 3 dígitos, estão com 2, preciso rodar o código abaixo
+
+Mortalidade10$NATURAL <- str_pad(Mortalidade10$NATURAL, width = 3, pad = "0")
+
+
+###### Antes de fazer o Join preciso deixar os dois campos NATURAL com o mesmo
+##### Formato! Nesse caso, character
+
+Mortalidade10 <- Mortalidade10 %>%
+  mutate(NATURAL = as.character(NATURAL))
+
+#### FAzendo o Join dessa tabela com o do código do país
+
+Mortalidade10 <- Mortalidade10 %>%
+  left_join(cod_pais %>% select(PAÍS,NATURAL), 
+            by = c("NATURAL" = "NATURAL"))
+#### nesse passo ele vai dar um erro de many-to-many, pode ignorar pq aumenta muito pouco o número
+
+### fazendo o join com o DTB do IBGE
+
+cod_muni_IBGE <- read_xls("D:/Users/sophi/Documents/PosDoc/DicionarioCodigoMunicipioIBGE/Relatorio_DTB_Municipio_FORMATADO.xls")
+
+### Como na tabela do Ministério da saúde, o CODMUNRES vem com 6 dígitos, preciso criar 
+### uma nova coluna em cod_muni_IBGE com os 6 primeiros dígitos para dar o join
+
+cod_muni_IBGE$CODMUNRES_6 <- substr(cod_muni_IBGE$`Código Município Completo`, 1, 6)
+
+## Deixando no mesmo formato
+
+Mortalidade10 <- Mortalidade10 %>%
+  mutate(CODMUNRES = as.character(CODMUNRES))
+
+### Agora o join
+
+Mortalidade10 <- Mortalidade10 %>% left_join(cod_muni_IBGE, by = c("CODMUNRES" = "CODMUNRES_6"))
+
+### Apagando as informações referentes aos estados brasileiro e ao nome "Brasil" na coluna NATURAL
+### para ficar apenas os imigrantes. De acordo com o a tabela cod_pais todos os registros que começam com 8, 
+### correspondem a estados brasileiros ou ao Brasil
+
+library (stringr)
+
+Mortalidade10 <- Mortalidade10 %>% filter(!str_starts(NATURAL, "8"))
+
+### Fazendo o join das Causas Base
+
+causabas <- read.csv("D:/Users/sophi/Documents/PosDoc/Mortalidade/CID-10-SUBCATEGORIAS_JOIN.CSV", 
+                     sep = ";",
+                     fileEncoding = "Windows-1252") ## esse final do código é
+### importante para corrigir os acentos
+
+
+Mortalidade10 <- Mortalidade10%>%
+  left_join(causabas %>% select(SUBCAT,DESCRICAO), 
+            by = c("CAUSABAS" = "SUBCAT"))
+
+
+## Exportando
+#install.packages("openxlsx")
+library(openxlsx)
+
+write.xlsx(Mortalidade10, "D:/Users/sophi/Documents/PosDoc/Mortalidade/MortalidadeImigrante2010.xlsx")
+
+#### Filtrando só a nacionalidade Venezuelana
+
+SIM_2010_Venezuelanos <- subset (Mortalidade10, PAÍS== "VENEZUELA")
+
+write.xlsx(SIM_2010_Venezuelanos, "D:/Users/sophi/Documents/PosDoc/Mortalidade/Mortalidade_2010_Venezuelanos.xlsx")
+
+
+
