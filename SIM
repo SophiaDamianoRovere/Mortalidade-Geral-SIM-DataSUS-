@@ -1,12 +1,12 @@
 #### Código final depois de muitos testes
 
-## para isso, além do .csv do arquivo de mortalidade, que baixei do site, também
+## para isso, além do .csv do arquivo de mortalidade, que baixei do site (https://dados.gov.br/dados/conjuntos-dados/sim-1979-2019), também
 ## preciso de três arquivos para fazer o join:
      ## CNV do FTP para as IDADES - baixei direto do FTP do DataSUS
      ## CNV do site para a NATURALIDADE-baixei direto do FTP do DataSUS
      ## Tabela DTB do IBGE para código dos municípios-baixei direto do FTP do DataSUS
 
-
+###Não consegui usar o pacote microdatasus, porque estava com um problema na decodificação da variável nacionalidade, fundamental para o projeto
 setwd("D:/Users/sophi/Documents/PosDoc/Mortalidade")
 
 # ABRINDO O ARQUIVO
